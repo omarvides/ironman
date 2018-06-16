@@ -30,25 +30,25 @@ func TestGenerateCmd(t *testing.T) {
 	}()
 	tests := []testhelpers.CmdTestCase{
 		{
-			"successful generate",
-			[]string{"template-example", filepath.Join(tempGenerateDir, "test-gen")},
-			[]string{""},
-			"Running template generator app\nDone\n",
-			false,
+			Name:     "successful generate",
+			Args:     []string{"template-example", filepath.Join(tempGenerateDir, "test-gen")},
+			Flags:    []string{""},
+			Expected: "Running template generator app\nDone\n",
+			Err:      false,
 		},
 		{
-			"successful generate with parameters",
-			[]string{"template-example", filepath.Join(tempGenerateDir, "test-gen-with-parameters")},
-			[]string{"--set", "key=value"},
-			"Running template generator app\nDone\n",
-			false,
+			Name:     "successful generate with parameters",
+			Args:     []string{"template-example", filepath.Join(tempGenerateDir, "test-gen-with-parameters")},
+			Flags:    []string{"--set", "key=value"},
+			Expected: "Running template generator app\nDone\n",
+			Err:      false,
 		},
 		{
-			"template id required",
-			[]string{},
-			[]string{},
-			"",
-			true,
+			Name:     "template id required",
+			Args:     []string{},
+			Flags:    []string{},
+			Expected: "",
+			Err:      true,
 		},
 	}
 	testhelpers.RunCmdTests(t, tests, func(client *ironman.Ironman, out io.Writer) *cobra.Command {
