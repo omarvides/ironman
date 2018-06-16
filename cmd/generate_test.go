@@ -3,7 +3,9 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -24,36 +26,57 @@ type cmdTestCase struct {
 
 type testCmdFactory func(ironman *ironman.Ironman, out io.Writer) *cobra.Command
 
-func TestGenerateCmd(t *testing.T) {
+//Pre-installs a template for running tests
+func setUpGenerateCmd(t *testing.T, client *ironman.Ironman, testCase cmdTestCase) {
+	installCmd := newInstallCommand(client, ioutil.Discard)
+	//equivalente to ironman install https://github.com/ironman-project/template-example.git
+	args := []string{"https://github.com/ironman-project/template-example.git"}
+	runTestCmd(installCmd, t, args, nil)
+}
 
+func TestGenerateCmd(t *testing.T) {
+	tempGenerateDir := testutils.CreateTempDir("temp-generate", t)
+	defer func() {
+		_ = os.RemoveAll(tempGenerateDir)
+	}()
 	tests := []cmdTestCase{
 		{
 			"successful generate",
-			[]string{"valid", "test-gen"},
+			[]string{"template-example", filepath.Join(tempGenerateDir, "test-gen")},
 			[]string{""},
-			"",
-			true,
+			"Running template generator app\nDone\n",
+			false,
 		},
 	}
 	runCmdTests(t, tests, func(client *ironman.Ironman, out io.Writer) *cobra.Command {
 		return newGenerateCommand(client, out)
-	})
+	}, setUpGenerateCmd, nil)
 
 }
 
-func runCmdTests(t *testing.T, tests []cmdTestCase, cmdFactory testCmdFactory) {
+type cmdTestCaseSetUpTearDown func(*testing.T, *ironman.Ironman, cmdTestCase)
+
+func runCmdTests(t *testing.T, tests []cmdTestCase, cmdFactory testCmdFactory, setUp cmdTestCaseSetUpTearDown, tearDown cmdTestCaseSetUpTearDown) {
 	var buf bytes.Buffer
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempHome := testutils.CreateTempDir("ihome", t)
-			testutils.CopyDir("testing/ihome", tempHome, t)
 			client := ironman.New(tempHome)
 			defer func() {
 				_ = os.RemoveAll(tempHome)
 			}()
+
+			if setUp != nil {
+				setUp(t, client, tt)
+			}
+			if tearDown != nil {
+				defer tearDown(t, client, tt)
+			}
+
 			cmd := cmdFactory(client, &buf)
+			err := runTestCmd(cmd, t, tt.args, tt.flags)
 			cmd.ParseFlags(tt.flags)
-			err := cmd.RunE(cmd, tt.args)
+
 			if (err != nil) != tt.err {
 				t.Errorf("expected error, got '%v'", err)
 			}
@@ -64,4 +87,10 @@ func runCmdTests(t *testing.T, tests []cmdTestCase, cmdFactory testCmdFactory) {
 			buf.Reset()
 		})
 	}
+}
+
+func runTestCmd(cmd *cobra.Command, t *testing.T, args []string, flags []string) error {
+	cmd.ParseFlags(flags)
+	err := cmd.RunE(cmd, args)
+	return err
 }
